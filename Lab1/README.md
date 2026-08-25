@@ -31,7 +31,6 @@ Models all three actors and 11 use cases, including:
 - include: Register Webhook Endpoint / Configure Retry & Backoff Policy -> Authenticate User; Ingest Webhook Event -> Validate Payload Signature and -> Deliver Webhook Event with Retry
 - extend: Send Escalation Alert -> Manually Retry Failed Delivery
 
-![Use Case Diagram](02-UseCase-Diagram/usecase_diagram.png)
 
 ### 3. Use-Case Flow Specification
 Core use case: Deliver Webhook Event with Retry — Preconditions, Postconditions, Main Success Scenario, and one Alternate Flow (backoff retry -> dead-letter escalation).
