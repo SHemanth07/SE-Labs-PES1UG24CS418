@@ -1,0 +1,31 @@
+From 5e790324ec6574c6dba46007965d338bc427a671 Mon Sep 17 00:00:00 2001
+From: student <student@example.com>
+Date: Thu, 8 Oct 2026 05:22:11 +0000
+Subject: [PATCH 1/4] Task 1: Fix collision detection to use the shrunken
+ visual radius
+
+---
+ game/target.py | 10 +++-------
+ 1 file changed, 3 insertions(+), 7 deletions(-)
+
+diff --git a/game/target.py b/game/target.py
+index 2edf3eb..3627c19 100644
+--- a/game/target.py
++++ b/game/target.py
+@@ -22,10 +22,6 @@ class Target:
+         return self.base_radius - (self.base_radius - self.min_radius) * t
+ 
+     def contains_point(self, x, y):
+-        # NOTE: hit-testing always uses the target's starting radius
+-        # (base_radius), not its current, shrunken on-screen radius
+-        # (visual_radius()). The circle drawn in render() shrinks as
+-        # the target ages, but the clickable area never does, so a
+-        # late click well outside the small visible circle can still
+-        # register as a hit. See Task 1 in the README.
+-        return math.hypot(self.x - x, self.y - y) <= self.base_radius
++        # Hit-testing uses the radius that is actually drawn on screen,
++        # so the clickable area always matches the visible circle.
++        return math.hypot(self.x - x, self.y - y) <= self.visual_radius()
+-- 
+2.43.0
+
