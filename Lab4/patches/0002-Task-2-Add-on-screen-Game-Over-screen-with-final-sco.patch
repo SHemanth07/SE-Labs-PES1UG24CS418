@@ -1,0 +1,79 @@
+From aafe9f7c01368fa8b9a1b411c95addef2eadc66d Mon Sep 17 00:00:00 2001
+From: student <student@example.com>
+Date: Thu, 8 Oct 2026 05:22:18 +0000
+Subject: [PATCH 2/4] Task 2: Add on-screen Game Over screen with final score
+ and accuracy
+
+---
+ game/game_engine.py | 29 +++++++++++++++++++++++++----
+ main.py             |  2 ++
+ 2 files changed, 27 insertions(+), 4 deletions(-)
+
+diff --git a/game/game_engine.py b/game/game_engine.py
+index aff3b78..34aecad 100644
+--- a/game/game_engine.py
++++ b/game/game_engine.py
+@@ -23,7 +23,9 @@ class GameEngine:
+         self.misses = 0
+         self.score = 0
+         self.font = pygame.font.SysFont("Arial", 26)
++        self.big_font = pygame.font.SysFont("Arial", 56, bold=True)
+         self.game_over = False
++        self.quit_requested = False
+ 
+     def _spawn_target(self):
+         x = random.randint(self.margin, self.width - self.margin)
+@@ -32,6 +34,8 @@ class GameEngine:
+ 
+     def handle_event(self, event):
+         if self.game_over:
++            if event.type == pygame.KEYDOWN and event.key in (pygame.K_ESCAPE, pygame.K_q):
++                self.quit_requested = True
+             return
+         if event.type == pygame.MOUSEBUTTONDOWN:
+             self._handle_click(event.pos)
+@@ -85,7 +89,24 @@ class GameEngine:
+         acc_text = self.font.render(f"Accuracy: {self.accuracy()}%", True, WHITE)
+         screen.blit(acc_text, (self.width // 2 - 90, 10))
+ 
+-        if self.game_over and not getattr(self, "_game_over_logged", False):
+-            # NOTE: no proper game-over screen yet - see Task 2 in the README.
+-            print(f"Time's up! Final score: {self.score}  Accuracy: {self.accuracy()}%")
+-            self._game_over_logged = True
++        if self.game_over:
++            self._render_game_over(screen)
++
++    def _render_game_over(self, screen):
++        # Dim the playfield, then draw the result panel on top.
++        overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
++        overlay.fill((0, 0, 0, 190))
++        screen.blit(overlay, (0, 0))
++
++        lines = [
++            (self.big_font, "GAME OVER", WHITE),
++            (self.font, f"Final Score: {self.score}", WHITE),
++            (self.font, f"Accuracy: {self.accuracy()}%", WHITE),
++            (self.font, f"Hits: {self.hits}   Misses: {self.misses}", WHITE),
++            (self.font, "Press ESC or Q to quit", WHITE),
++        ]
++        y = self.height // 2 - 130
++        for font, text, color in lines:
++            surf = font.render(text, True, color)
++            screen.blit(surf, surf.get_rect(center=(self.width // 2, y)))
++            y += 70 if font is self.big_font else 42
+diff --git a/main.py b/main.py
+index ed6663e..25416e3 100644
+--- a/main.py
++++ b/main.py
+@@ -31,6 +31,8 @@ def main():
+         engine.handle_input()
+         engine.update()
+         engine.render(SCREEN)
++        if engine.quit_requested:
++            running = False
+ 
+         pygame.display.flip()
+         clock.tick(FPS)
+-- 
+2.43.0
+
