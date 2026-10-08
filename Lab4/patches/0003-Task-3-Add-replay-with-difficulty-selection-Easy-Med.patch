@@ -1,0 +1,203 @@
+From c0396d5e17da6f1fc0260dca2badb8b27e243580 Mon Sep 17 00:00:00 2001
+From: student <student@example.com>
+Date: Thu, 8 Oct 2026 05:22:32 +0000
+Subject: [PATCH 3/4] Task 3: Add replay with difficulty selection
+ (Easy/Medium/Hard) and exit
+
+---
+ game/game_engine.py | 130 ++++++++++++++++++++++++++++++++++----------
+ 1 file changed, 100 insertions(+), 30 deletions(-)
+
+diff --git a/game/game_engine.py b/game/game_engine.py
+index 34aecad..0c1203e 100644
+--- a/game/game_engine.py
++++ b/game/game_engine.py
+@@ -6,6 +6,21 @@ from .target import Target
+ 
+ WHITE = (255, 255, 255)
+ RED = (220, 60, 60)
++GRAY = (150, 150, 160)
++PANEL = (60, 60, 70)
++
++# Difficulty presets: (base_radius, min_radius, lifespan_frames at 60 FPS)
++DIFFICULTIES = {
++    "Easy":   {"base_radius": 50, "min_radius": 18, "lifespan_frames": 120},
++    "Medium": {"base_radius": 40, "min_radius": 12, "lifespan_frames": 90},
++    "Hard":   {"base_radius": 28, "min_radius": 8,  "lifespan_frames": 60},
++}
++
++# Game states
++PLAYING = "playing"
++GAME_OVER = "game_over"
++MENU = "menu"
++
+ 
+ class GameEngine:
+     def __init__(self, width, height):
+@@ -14,31 +29,63 @@ class GameEngine:
+ 
+         self.margin = 60
+         self.hud_height = 60
+-        self.target = self._spawn_target()
+-
+         self.round_seconds = 30
+-        self.time_left_frames = self.round_seconds * 60
+ 
+-        self.hits = 0
+-        self.misses = 0
+-        self.score = 0
+         self.font = pygame.font.SysFont("Arial", 26)
+         self.big_font = pygame.font.SysFont("Arial", 56, bold=True)
+-        self.game_over = False
+         self.quit_requested = False
+ 
++        self.difficulty = "Medium"
++        self.menu_buttons = {}
++        self.start_round(self.difficulty)
++
++    # ---------- round lifecycle ----------
++    def start_round(self, difficulty):
++        """Reset all round state and begin a new round at the given difficulty."""
++        self.difficulty = difficulty
++        self.state = PLAYING
++        self.time_left_frames = self.round_seconds * 60
++        self.hits = 0
++        self.misses = 0
++        self.score = 0
++        self.target = self._spawn_target()
++
++    @property
++    def game_over(self):
++        return self.state == GAME_OVER
++
+     def _spawn_target(self):
+         x = random.randint(self.margin, self.width - self.margin)
+         y = random.randint(self.margin + self.hud_height, self.height - self.margin)
+-        return Target(x, y)
++        return Target(x, y, **DIFFICULTIES[self.difficulty])
+ 
++    # ---------- input ----------
+     def handle_event(self, event):
+-        if self.game_over:
+-            if event.type == pygame.KEYDOWN and event.key in (pygame.K_ESCAPE, pygame.K_q):
+-                self.quit_requested = True
+-            return
+-        if event.type == pygame.MOUSEBUTTONDOWN:
+-            self._handle_click(event.pos)
++        if self.state == PLAYING:
++            if event.type == pygame.MOUSEBUTTONDOWN:
++                self._handle_click(event.pos)
++
++        elif self.state == GAME_OVER:
++            if event.type == pygame.KEYDOWN:
++                if event.key in (pygame.K_r, pygame.K_RETURN, pygame.K_SPACE):
++                    self.state = MENU
++                elif event.key in (pygame.K_ESCAPE, pygame.K_q):
++                    self.quit_requested = True
++
++        elif self.state == MENU:
++            if event.type == pygame.KEYDOWN:
++                keys = {pygame.K_1: "Easy", pygame.K_2: "Medium", pygame.K_3: "Hard"}
++                if event.key in keys:
++                    self.start_round(keys[event.key])
++                elif event.key in (pygame.K_ESCAPE, pygame.K_q):
++                    self.quit_requested = True
++            elif event.type == pygame.MOUSEBUTTONDOWN:
++                for name, rect in self.menu_buttons.items():
++                    if rect.collidepoint(event.pos):
++                        if name == "Exit":
++                            self.quit_requested = True
++                        else:
++                            self.start_round(name)
+ 
+     def _handle_click(self, pos):
+         x, y = pos
+@@ -54,13 +101,14 @@ class GameEngine:
+         # entirely mouse-driven, so there's nothing to poll here.
+         pass
+ 
++    # ---------- update ----------
+     def update(self):
+-        if self.game_over:
++        if self.state != PLAYING:
+             return
+ 
+         self.time_left_frames -= 1
+         if self.time_left_frames <= 0:
+-            self.game_over = True
++            self.state = GAME_OVER
+             return
+ 
+         self.target.update()
+@@ -74,7 +122,12 @@ class GameEngine:
+             return 0.0
+         return round(100 * self.hits / total, 1)
+ 
++    # ---------- rendering ----------
+     def render(self, screen):
++        if self.state == MENU:
++            self._render_menu(screen)
++            return
++
+         r = int(self.target.visual_radius())
+         pygame.draw.circle(screen, RED, (self.target.x, self.target.y), r)
+         pygame.draw.circle(screen, WHITE, (self.target.x, self.target.y), r, 2)
+@@ -89,24 +142,41 @@ class GameEngine:
+         acc_text = self.font.render(f"Accuracy: {self.accuracy()}%", True, WHITE)
+         screen.blit(acc_text, (self.width // 2 - 90, 10))
+ 
+-        if self.game_over:
++        if self.state == GAME_OVER:
+             self._render_game_over(screen)
+ 
++    def _centered(self, screen, font, text, y, color=WHITE):
++        surf = font.render(text, True, color)
++        screen.blit(surf, surf.get_rect(center=(self.width // 2, y)))
++
+     def _render_game_over(self, screen):
+-        # Dim the playfield, then draw the result panel on top.
+         overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+         overlay.fill((0, 0, 0, 190))
+         screen.blit(overlay, (0, 0))
+ 
+-        lines = [
+-            (self.big_font, "GAME OVER", WHITE),
+-            (self.font, f"Final Score: {self.score}", WHITE),
+-            (self.font, f"Accuracy: {self.accuracy()}%", WHITE),
+-            (self.font, f"Hits: {self.hits}   Misses: {self.misses}", WHITE),
+-            (self.font, "Press ESC or Q to quit", WHITE),
+-        ]
+-        y = self.height // 2 - 130
+-        for font, text, color in lines:
+-            surf = font.render(text, True, color)
+-            screen.blit(surf, surf.get_rect(center=(self.width // 2, y)))
+-            y += 70 if font is self.big_font else 42
++        cy = self.height // 2
++        self._centered(screen, self.big_font, "GAME OVER", cy - 130)
++        self._centered(screen, self.font, f"Final Score: {self.score}", cy - 60)
++        self._centered(screen, self.font, f"Accuracy: {self.accuracy()}%", cy - 20)
++        self._centered(screen, self.font,
++                       f"Hits: {self.hits}   Misses: {self.misses}", cy + 20)
++        self._centered(screen, self.font, "Press R to play again", cy + 80)
++        self._centered(screen, self.font, "Press ESC or Q to quit", cy + 115, GRAY)
++
++    def _render_menu(self, screen):
++        self._centered(screen, self.big_font, "Select Difficulty", 90)
++
++        self.menu_buttons = {}
++        labels = [("Easy", "1"), ("Medium", "2"), ("Hard", "3"), ("Exit", "Esc")]
++        bw, bh, gap = 300, 52, 18
++        top = 170
++        mouse = pygame.mouse.get_pos()
++        for i, (name, key) in enumerate(labels):
++            rect = pygame.Rect(0, 0, bw, bh)
++            rect.centerx = self.width // 2
++            rect.y = top + i * (bh + gap)
++            self.menu_buttons[name] = rect
++            color = (90, 90, 105) if rect.collidepoint(mouse) else PANEL
++            pygame.draw.rect(screen, color, rect, border_radius=8)
++            pygame.draw.rect(screen, WHITE, rect, 2, border_radius=8)
++            self._centered(screen, self.font, f"{name}  [{key}]", rect.centery)
+-- 
+2.43.0
+
