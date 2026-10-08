@@ -3,7 +3,7 @@
 A fast-paced aim trainer built with **Python and Pygame**. Click the targets before they shrink away, keep your accuracy high, and beat your score in a 30-second round across three difficulty levels.
 
 > Lab 4 (VibeCoding) submission, Repo #47
-> **Student:** [S. Hemanth Kumar Reddy] &nbsp;|&nbsp; **SRN:** [PES1UG24CS418] &nbsp;|&nbsp; **Section:** [5G]
+> **Student:** S. Hemanth Kumar Reddy &nbsp;|&nbsp; **SRN:** PES1UG24CS418 &nbsp;|&nbsp; **Section:** 5G
 > Built on the starter project from [SETAPESU26/47_target-aim-trainer](https://github.com/SETAPESU26/47_target-aim-trainer)
 
 ---
@@ -92,7 +92,3 @@ The generator reads the mixer's actual channel count, so it works whether pygame
 
 ---
 
-## 🔗 Submission Links
-
-- **Chat history (share link):** [paste your chat link here]
-- **Before video:** `before.mp4` &nbsp;|&nbsp; **After video:** `after.mp4`
