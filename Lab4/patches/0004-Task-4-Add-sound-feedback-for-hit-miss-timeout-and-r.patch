@@ -1,0 +1,113 @@
+From 5ab73ec16a9e1dcc25f78aee12fe150dc3426ff6 Mon Sep 17 00:00:00 2001
+From: student <student@example.com>
+Date: Thu, 8 Oct 2026 05:22:40 +0000
+Subject: [PATCH 4/4] Task 4: Add sound feedback for hit, miss/timeout, and
+ round end
+
+---
+ game/game_engine.py |  6 ++++++
+ game/sounds.py      | 46 +++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 52 insertions(+)
+ create mode 100644 game/sounds.py
+
+diff --git a/game/game_engine.py b/game/game_engine.py
+index 0c1203e..b51be5b 100644
+--- a/game/game_engine.py
++++ b/game/game_engine.py
+@@ -1,6 +1,7 @@
+ import pygame
+ import random
+ from .target import Target
++from .sounds import SoundManager
+ 
+ # Game Engine
+ 
+@@ -34,6 +35,7 @@ class GameEngine:
+         self.font = pygame.font.SysFont("Arial", 26)
+         self.big_font = pygame.font.SysFont("Arial", 56, bold=True)
+         self.quit_requested = False
++        self.sounds = SoundManager()
+ 
+         self.difficulty = "Medium"
+         self.menu_buttons = {}
+@@ -92,9 +94,11 @@ class GameEngine:
+         if self.target.contains_point(x, y):
+             self.hits += 1
+             self.score += 1
++            self.sounds.play("hit")
+             self.target = self._spawn_target()
+         else:
+             self.misses += 1
++            self.sounds.play("miss")
+ 
+     def handle_input(self):
+         # Reserved for continuously-held-key input; this game is
+@@ -109,11 +113,13 @@ class GameEngine:
+         self.time_left_frames -= 1
+         if self.time_left_frames <= 0:
+             self.state = GAME_OVER
++            self.sounds.play("game_over")
+             return
+ 
+         self.target.update()
+         if self.target.expired():
+             self.misses += 1  # letting a target time out counts as a miss too
++            self.sounds.play("miss")
+             self.target = self._spawn_target()
+ 
+     def accuracy(self):
+diff --git a/game/sounds.py b/game/sounds.py
+new file mode 100644
+index 0000000..b2518de
+--- /dev/null
++++ b/game/sounds.py
+@@ -0,0 +1,46 @@
++import array
++import math
++import pygame
++
++SAMPLE_RATE = 44100
++
++
++def _tone(freqs, ms, volume=0.4, square=False):
++    """Build a pygame Sound from a sequence of frequencies (one per equal slice).
++
++    Sounds are synthesised in code, so no audio asset files are needed.
++    """
++    # pygame.init() may already have opened the mixer (often in stereo), so
++    # build the buffer to match whatever format is actually in use.
++    rate, _fmt, channels = pygame.mixer.get_init()
++    samples = array.array("h")
++    per_note = int(rate * ms / 1000 / len(freqs))
++    for f in freqs:
++        for i in range(per_note):
++            wave = math.sin(2 * math.pi * f * i / rate)
++            if square:
++                wave = 1.0 if wave >= 0 else -1.0
++            fade = 1.0 - i / per_note  # fade out to avoid clicks
++            value = int(32767 * volume * fade * wave)
++            samples.extend([value] * channels)  # same sample on every channel
++    return pygame.mixer.Sound(buffer=samples.tobytes())
++
++
++class SoundManager:
++    """Plays hit / miss / game-over effects. Fails silently if no audio device."""
++
++    def __init__(self):
++        self.enabled = False
++        try:
++            if not pygame.mixer.get_init():
++                pygame.mixer.init(SAMPLE_RATE, -16, 1, 512)
++            self.hit = _tone([880, 1320], 120)                     # bright rising "ding"
++            self.miss = _tone([180], 180, volume=0.35, square=True)  # low buzz
++            self.game_over = _tone([660, 520, 400, 260], 700)       # descending jingle
++            self.enabled = True
++        except pygame.error:
++            pass  # no audio device: game still runs, just silently
++
++    def play(self, name):
++        if self.enabled:
++            getattr(self, name).play()
+-- 
+2.43.0
+
