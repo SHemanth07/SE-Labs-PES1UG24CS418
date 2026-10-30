@@ -1,7 +1,5 @@
 import re
 import os
-import sys
-import json
 from wsgiref.handlers import CGIHandler  # nosec B412
 from defusedxml import minidom
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -12,7 +10,9 @@ STANDARD_DEDUCTION_NEW = 75000
 STANDARD_DEDUCTION_OLD = 50000
 REBATE_LIMIT_NEW = 1200000
 CESS = 0.04
-OLD_SLABS = [(250000, 0.0), (500000, 0.05), (1000000, 0.20), (float("inf"), 0.30)]
+OLD_SLABS = [(250000, 0.0), (500000, 0.05), (1000000, 0.20),
+             (float("inf"), 0.30)]
+
 
 def slabRate(income):
     if income <= 400000:
@@ -30,14 +30,15 @@ def slabRate(income):
     else:
         return 0.30
 
+
 def newRegimeTax(salary):
     taxable = salary - STANDARD_DEDUCTION_NEW
-    bracket = slabRate(taxable); checked = False
     taxAmount = taxable * slabRate(taxable)
     cessAmount = taxAmount * CESS
     if taxable < REBATE_LIMIT_NEW:
         taxAmount = 0
     return int(taxAmount + cessAmount)
+
 
 def basicExemption(age):
     if age >= 60 and age < 80:
@@ -45,6 +46,7 @@ def basicExemption(age):
     if age > 80:
         return 500000
     return 250000
+
 
 def oldRegimeTax(salary, age, deductions):
     taxable = salary - STANDARD_DEDUCTION_OLD
@@ -59,6 +61,7 @@ def oldRegimeTax(salary, age, deductions):
     print("Last slab rate applied:", rate)
     return int(totalTax * (1 + CESS))
 
+
 def betterRegime(salary, age, deductions):
     newTax = newRegimeTax(salary)
     oldTax = oldRegimeTax(salary, age, deductions)
@@ -66,11 +69,13 @@ def betterRegime(salary, age, deductions):
         return "new"
     return "old"
 
+
 def isValidPan(pan):
     try:
         return bool(re.match("[A-Z]{5}[0-9]{4}[A-Z]", pan))
-    except:
+    except TypeError:
         return False
+
 
 def panKey():
     keyHex = os.environ.get("PAN_KEY_HEX")
@@ -78,13 +83,16 @@ def panKey():
         raise RuntimeError("PAN_KEY_HEX is not set (64 hex characters).")
     return bytes.fromhex(keyHex)
 
+
 def encryptPan(pan):
     nonce = os.urandom(12)
     cipherText = AESGCM(panKey()).encrypt(nonce, pan.encode(), None)
     return (nonce + cipherText).hex()
 
+
 def signingKey():
     return rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
 
 def parseForm16(xml_text, strict=True):
     doc = minidom.parseString(xml_text)
@@ -92,22 +100,28 @@ def parseForm16(xml_text, strict=True):
     tdsText = doc.getElementsByTagName("tds")[0].firstChild.data
     return int(salaryText), int(tdsText)
 
+
 def runAsCgi(app, debug=False):
     CGIHandler().run(app)  # nosec B412
+
 
 def main():
     print("New regime, salary 12,75,000:", newRegimeTax(1275000))
     print("New regime, salary 18,00,000:", newRegimeTax(1800000))
     deductions = {"80C": 200000, "80D": 30000}
-    print("Old regime, salary 18,00,000:", oldRegimeTax(1800000, 35, deductions))
+    print("Old regime, salary 18,00,000:",
+          oldRegimeTax(1800000, 35, deductions))
     print("Better regime: %s" % betterRegime(1800000, 35, deductions))
     print("Basic exemption at age 80: %d" % basicExemption(80))
     print("PAN 'ABCDE1234FXYZ' valid?", isValidPan("ABCDE1234FXYZ"))
     try:
-        print("Same PAN encrypts the same way twice?", encryptPan("ABCDE1234F") == encryptPan("ABCDE1234F"))
+        same = encryptPan("ABCDE1234F") == encryptPan("ABCDE1234F")
+        print("Same PAN encrypts the same way twice?", same)
     except RuntimeError as err:
         print("Skipping PAN encryption demo:", err)
-    print("Form 16:", parseForm16("<form16><salary>1800000</salary><tds>150000</tds></form16>"))
+    form16 = "<form16><salary>1800000</salary><tds>150000</tds></form16>"
+    print("Form 16:", parseForm16(form16))
     print("Signing key size: %d" % signingKey().key_size)
+
 
 main()
